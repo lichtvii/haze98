@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>haze98 relay</title>
+<script>
+  // only the APIs the site reads, so this page is not a general-purpose relay for whoever embeds it
+  const ALLOWED_HOSTS = [
+    'guestbooks.meadow.cafe',
+    'api.adviceslip.com',
+    'tarotapi.dev',
+    'earthquake.usgs.gov',
+    'services.swpc.noaa.gov',
+    'api.wheretheiss.at',
+    'api.wikimedia.org',
+    'r.jina.ai',
+  ];
+  const ALLOWED_PAGE_ORIGIN = /^(https:\/\/[a-z0-9-]+\.neocities\.org|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/i;
+  const ALLOWED_METHODS = ['GET', 'POST'];
+
+  window.addEventListener('message', async (event) => {
+    if (event.source !== window.parent || !ALLOWED_PAGE_ORIGIN.test(event.origin)) return;
+    const { id, url, method = 'GET', headers = {}, body, timeoutMs = 12000 } = event.data || {};
+    const reply = (message) => window.parent.postMessage({ id, ...message }, event.origin);
+
+    let target;
+    try {
+      target = new URL(url);
+    } catch {
+      reply({ error: 'bad url' });
+      return;
+    }
+    if (target.protocol !== 'https:' || !ALLOWED_HOSTS.includes(target.hostname) || !ALLOWED_METHODS.includes(method)) {
+      reply({ error: 'not allowed' });
+      return;
+    }
+
+    try {
+      const response = await fetch(target, { method, headers, body, cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) });
+      reply({ ok: response.ok, status: response.status, text: await response.text() });
+    } catch (error) {
+      reply({ error: error.name || 'failed' });
+    }
+  });
+
+  if (window.parent !== window) window.parent.postMessage({ ready: true }, '*');
+</script>
+</head>
+<body></body>
+</html>
